@@ -1,23 +1,20 @@
-
 "use strict"
 
-module.exports = function(server, iotApp) {
+module.exports = function(exApp, exAppServer, iotApp, emitter) {
 
   var fs = require("fs");
 	
-  //var agent = null;
   var status = {status : ""};
   	
   function respond(res, code, body){
-    res.writeHead(code, {"Content-Type" : "text/plain"});
+    res.writeHead(code, {"Content-Type" : "application/json"});
     res.end(body);
   }
 	
   status.status = "running";
   iotApp.start();
-  //console.log("ejra mishe");
 
-  server.put("/", function(req, res){
+  exApp.put("/", function(req, res){
     var data = "";
     req.on("data", function(chunk){
       data += chunk;
@@ -45,14 +42,18 @@ module.exports = function(server, iotApp) {
   function stop(res) {
     if(iotApp && status.status === "running") {
       status.status = "paused";
+      emitter.once('paused', function(){
+        console.log('pausedeeeeeeeeeeeeeee');
+        respond(res, 200, JSON.stringify(status));
+      });
       iotApp.stop();
-      respond(res, 200, JSON.stringify(status));
+      //respond(res, 200, JSON.stringify(status));
     } else {
       respond(res, 204);
     }
   }
 
-  server.get("/", function(req, res) {
+  exApp.get("/", function(req, res) {
     respond(res, 200, JSON.stringify(status));
   });
 

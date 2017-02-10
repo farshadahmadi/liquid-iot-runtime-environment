@@ -1,64 +1,57 @@
-var fs = require("fs");
-var util = require("util");
+'use strict'
 
-var express = require('express');
-var app = express();
+module.exports = function(exApp, port, appDescr, RRUrl, cwd, emitter){
 
-var log_file = fs.createWriteStream("./debug.log", {flags : "a"});
+  var fs = require("fs");
+  var util = require("util");
 
+  var express = require('express');
 
-process.on("uncaughtException", function(error){
-  fs.appendFileSync("./debug.log", error.stack, "utf8");
-  throw error;
-});
+  var log_file = fs.createWriteStream(cwd + "debug.log", {flags : "a"});
 
-var log_stdout = process.stdout;
-var log_stderr = process.stderr;
+  var logger = {};
 
+  logger.log = function(d){
+    console.log(d);
+    log_file.write(util.format(d) + "\n");
+  }
 
-console.log = function(d){
-  log_file.write(util.format(d) + "\n");
-  log_stdout.write(util.format(d) + "\n");
+  var exAppServer = exApp.listen(port, function(){
+
+    try {
+      if (require.cache[require.resolve("./agentserver_handlers.js")]){
+        delete require.cache[require.resolve("./agentserver_handlers.js")];
+      }
+      if (require.cache[require.resolve("./agentserver_request.js")]){
+        delete require.cache[require.resolve("./agentserver_request.js")];
+      }
+      if (require.cache[require.resolve("./main.js")]){
+        delete require.cache[require.resolve("./main.js")];
+      }
+      if (require.cache[require.resolve("./agent.js")]){
+        delete require.cache[require.resolve("./agent.js")];
+      }
+    }catch(error){
+      console.log(error);
+    }
+
+    exApp.server = exAppServer;
+    
+    var iotApp = {};
+
+    var $router = express.Router();
+
+    var $request = require("./agentserver_request")(RRUrl);
+
+    require("./agent")(iotApp, emitter);
+    
+    require("./" + appDescr.main)(iotApp, $router, $request, logger);
+    
+    exApp.use("/api", $router);
+
+    require("./agentserver_handlers")(exApp, exAppServer, iotApp, emitter);
+
+  });
+
 }
-
-console.err = function(d){
-  log_file.write(util.format(d) + "\n");
-  log_stderr.write(util.format(d) + "\n");
-}
-
-app.listen(process.argv[2], function(){
-
-  var iotApp = {};
-  //iotApp.internal = {};
-
-  var $router = express.Router();
-
-  //iotApp.$router = express.Router();
-
-  var $request = require("./agentserver_request")(process.argv[4]);
-
-  require("./agent")(iotApp);
-  
-  require("./" + process.argv[3])(iotApp, $router, $request, console);
-
-  require("./agentserver_handlers")(app, iotApp);
-
-  app.use("/api", $router);
-  
- /* var iotApp = {};
-  iotApp.internal = {};
-
-  iotApp.internal.router = express.Router();
-
-  require("./agentserver_request")(iotApp.internal, process.argv[4]);
-
-  require("./agent")(iotApp.internal);
-  
-  require("./" + process.argv[3])(iotApp);
-
-  require("./agentserver_handlers")(app, iotApp.internal);
-
-  app.use("/api", iotApp.internal.router);*/
-
-});
 
